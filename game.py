@@ -13,6 +13,7 @@ background_sprites = pygame.sprite.Group()
 characters_sprites = pygame.sprite.Group()
 bars_sprites = pygame.sprite.Group()
 skills_sprites = pygame.sprite.Group()
+spells_sprites = pygame.sprite.Group()
 bar_font = pygame.font.SysFont('Sans', 25)
 colors = {True: 'blue', False: 'red'}
 moving = False
@@ -49,20 +50,18 @@ class Scene:
         bar = HPBar(char.name, char.hp)
         if char.side:
             self.heroes[char.position] = char
-            char.place = (200 - char.position * 40, height - 200 - 150 * (2 - char.position))
+            char.place = (200 - char.position * 40, height - 250 - 150 * (2 - char.position))
             char.rect = char.rect.move(char.place)
 
             self.heroes_bars[char.position] = bar
-            pygame.draw.rect(bar.image, 'green', (2, 2, 246, 26))
             bar.rect = pygame.Rect(100, 40 + char.position * 40, 250, 20)
 
         else:
             self.enemies[char.position] = char
-            char.place = (width - 300 + char.position * 40, height - 200 - 150 * (2 - char.position))
+            char.place = (width - 300 + char.position * 40, height - 250 - 150 * (2 - char.position))
             char.rect = char.rect.move(char.place)
 
             self.enemies_bars[char.position] = bar
-            pygame.draw.rect(bar.image, 'green', (2, 2, 246, 26))
             bar.rect = pygame.Rect(width - 350, 40 + char.position * 40, 250, 20)
 
 
@@ -73,6 +72,7 @@ class Person(pygame.sprite.Sprite):
         self.cut_sheet(pygame.transform.scale(sheet, (960, 1920)), 10, 10)
         self.radius = 40
         self.name = name
+        self.max_hp = hp
         self.hp = hp
         self.damage = damage
         self.armor = armor
@@ -94,7 +94,8 @@ class Person(pygame.sprite.Sprite):
         self.forward_move = False
         self.backing = False
         self.attacking = False
-        self.get_damage = False
+        self.getting_damage = False
+        self.helping = False
 
     def cut_sheet(self, sheet, columns, rows):
         self.rect = pygame.Rect(0, 0, sheet.get_width() // columns, sheet.get_height() // rows)
@@ -102,6 +103,12 @@ class Person(pygame.sprite.Sprite):
             for i in range(columns):
                 frame_location = (self.rect.w * i, self.rect.h * j + 50)
                 self.frames.append(sheet.subsurface(pygame.Rect(frame_location, (self.rect.size[0], self.rect.size[1] - 50))))
+
+    def help(self, skill, target):
+        self.target = target
+        self.cur_skill = skill
+        self.iteration = 0
+        self.helping = True
 
     def forward(self, skill, target):
         self.target = target
@@ -152,10 +159,22 @@ class Person(pygame.sprite.Sprite):
                 self.target = None
                 self.cur_skill = None
                 next_turn()
+            elif self.helping:
+                self.helping = False
+                self.target.hp = min(self.target.max_hp, self.target.hp + self.damage * self.cur_skill.coefficient)
+                if self.target.side:
+                    bar = scene.heroes_bars[self.target.position]
+                else:
+                    bar = scene.enemies_bars[self.target.position]
+                bar.hp = min(bar.max_hp, bar.hp + self.damage * self.cur_skill.coefficient)
+                self.iteration = 0
+                self.target = None
+                self.cur_skill = None
+                next_turn()
 
-            elif self.get_damage:
+            elif self.getting_damage:
                 scene.selected = None
-                self.get_damage = False
+                self.getting_damage = False
 
         self.cur_image = 0
 
@@ -166,7 +185,7 @@ class Person(pygame.sprite.Sprite):
                 self.cur_image = 18
             else:
                 self.cur_image = 19
-        if self.attacking:
+        if self.attacking or self.helping:
             if self.iteration < 5:
                 self.cur_image = 20
             elif self.iteration < 10:
@@ -175,9 +194,10 @@ class Person(pygame.sprite.Sprite):
                 self.cur_image = 22
             else:
                 self.cur_image = 23
-                self.target.get_damage = True
+                if self.attacking:
+                    self.target.getting_damage = True
                 self.target.iteration = 0
-        if self.get_damage:
+        if self.getting_damage:
             if self.iteration < 5:
                 self.cur_image = 11
             elif self.iteration < 10:
@@ -214,34 +234,56 @@ class HPBar(pygame.sprite.Sprite):
                 scene.enemies_bars[scene.enemies_bars.index(self)] = None
 
         self.percent = int(self.hp / self.max_hp * 100)
+        pygame.draw.rect(self.image, 'green', (2, 2, 246, 26))
         pygame.draw.rect(self.image, 'red', (self.percent * 2.5, 2, 250 - self.percent * 2.5 - 2, 26))
         self.image.blit(self.name, (5, 0))
 
 
 class Skill(pygame.sprite.Sprite):
-    def __init__(self, coefficient, to_enemy, to_hero, effect=None):
+    def __init__(self, name, coefficient, pos, meaning, to_enemy, to_hero, spell=None, effect=None):
         super().__init__(all_sprites, skills_sprites)
         self.coefficient = coefficient
+        self.meaning = meaning
         self.to_enemy = to_enemy
         self.to_hero = to_hero
+        self.pos = pos
+        self.spell = spell
         self.effect = effect
-        self.image = pygame.Surface((50, 50))
-        pygame.draw.rect(self.image, 'yellow', (2, 2, 46, 46))
-        self.rect = pygame.Rect((575, 740, 50, 50))
+        self.image = pygame.transform.scale(load_image(name), (50, 50))
+        self.rect = pygame.Rect((width, 740, 50, 50))
 
     def update(self, *args):
         global your_turn, moving
+        self.rect.left = width
+        if scene.selected is not None and (scene.selected.side and self.to_hero or not scene.selected.side and self.to_enemy):
+            self.rect.left = 30 + self.pos * 60
         if your_turn:
             if scene.selected is not None and args and args[0].type == pygame.MOUSEBUTTONDOWN and self.rect.collidepoint(args[0].pos):
-                scene.heroes[1].forward(self, scene.selected)
-                your_turn = False
-                moving = False
+                if self.meaning == 'closed':
+                    scene.heroes[1].forward(self, scene.selected)
+                    your_turn = False
+                    moving = False
+                elif self.meaning == 'help':
+                    scene.heroes[1].help(self, scene.selected)
+                    your_turn = False
+                    moving = False
+
+
+class Spell(pygame.sprite.Sprite):
+    def __init__(self):
+        super().__init__(all_sprites, spells_sprites)
+        self.image = pygame.Surface((40, 40), pygame.SRCALPHA, 32)
+        pygame.draw.circle(self.image, 'red', (20, 20), 20)
+        self.rect = pygame.Rect((width, 0), (40, 40))
+
+    def update(self, *args):
+        pass
 
 
 class Sky(pygame.sprite.Sprite):
     def __init__(self, name, pos=0):
         super().__init__(all_sprites, background_sprites)
-        self.image = pygame.transform.scale(load_image(name), (1200, 600))
+        self.image = pygame.transform.scale(load_image(name), (width, height / 3 * 2))
         self.rect = self.image.get_rect()
         self.rect.left += pos * 1200
         self.dx = -1
@@ -258,17 +300,20 @@ class Sky(pygame.sprite.Sprite):
 class Field(pygame.sprite.Sprite):
     def __init__(self, name):
         super().__init__(all_sprites, background_sprites)
-        self.image = pygame.transform.scale(load_image(name), (1200, 450))
+        self.image = pygame.transform.scale(load_image(name), (width, height / 3 * 5))
         self.rect = self.image.get_rect()
-        self.rect = self.rect.move(0, height - 450)
+        self.rect = self.rect.move(0, height * 2 / 5)
 
 
 sky1 = Sky('sky.png')
 sky2 = Sky('sky.png', 1)
 field = Field('grass.jpg')
 
-
-strike = Skill(1, True, False)
+strike = Skill('Icon.1_15.png', 1, 0, 'closed', True, False)
+fireball_spell = Spell()
+fireball = Skill('Icon.1_24.png', 1, 2, 'ranged', True, False, fireball_spell)
+strong_strike = Skill('Icon.3_31.png', 2, 1, 'closed', True, False)
+heal = Skill('Icon.6_86.png', 2, 0, 'help', False, True)
 
 
 def next_turn():
@@ -301,14 +346,14 @@ def terminate():
 
 
 scene = Scene()
-scene.add_character(Person('none', load_image('SkeletonBase.png'), True, 0, False, [strike], 100))
-sonny = Person('Sonny', load_image('SkeletonBase.png'), True, 1, True, [strike], 10500)
+scene.add_character(Person('none', load_image('SkeletonBase.png'), True, 0, False, [strike], 1000))
+sonny = Person('Sonny', load_image('SkeletonBase.png'), True, 1, True, [strike, strong_strike], 10500)
 scene.add_character(sonny)
-scene.add_character(Person('none', load_image('SkeletonBase.png'), True, 2, False, [strike], 100))
-scene.add_character(Person('none', load_image('bloodSkeletonBase.png'), False, 0, False, [strike], 100))
+scene.add_character(Person('none', load_image('SkeletonBase.png'), True, 2, False, [strike], 1000))
+scene.add_character(Person('none', load_image('bloodSkeletonBase.png'), False, 0, False, [strike], 1000))
 sceleton = Person('Sceleton', load_image('bloodSkeletonBase.png'), False, 1, False, [strike])
 scene.add_character(sceleton)
-scene.add_character(Person('none', load_image('bloodSkeletonBase.png'), False, 2, False, [strike], 100))
+scene.add_character(Person('none', load_image('bloodSkeletonBase.png'), False, 2, False, [strike], 1000))
 next_turn()
 
 
@@ -317,7 +362,8 @@ while True:
         if event.type == pygame.MOUSEBUTTONDOWN:
             for char in characters_sprites:
                 if char.rect.collidepoint(event.pos):
-                    scene.selected = char
+                    if your_turn:
+                        scene.selected = char
         if event.type == pygame.QUIT:
             terminate()
     pygame.display.flip()
@@ -330,5 +376,6 @@ while True:
     characters_sprites.draw(screen)
     bars_sprites.draw(screen)
     skills_sprites.draw(screen)
+    spells_sprites.draw(screen)
     all_sprites.update(event)
     clock.tick(FPS)
