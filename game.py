@@ -84,6 +84,18 @@ class Person(pygame.sprite.Sprite):
         self.cur_image = 0
         self.image = self.frames[self.cur_image]
 
+        self.target = None
+        self.cur_skill = None
+
+        self.moving_x = 0
+        self.moving_y = 0
+        self.iteration = 0
+
+        self.forward_move = False
+        self.backing = False
+        self.attacking = False
+        self.get_damage = False
+
     def cut_sheet(self, sheet, columns, rows):
         self.rect = pygame.Rect(0, 0, sheet.get_width() // columns, sheet.get_height() // rows)
         for j in range(rows):
@@ -91,15 +103,24 @@ class Person(pygame.sprite.Sprite):
                 frame_location = (self.rect.w * i, self.rect.h * j + 50)
                 self.frames.append(sheet.subsurface(pygame.Rect(frame_location, (self.rect.size[0], self.rect.size[1] - 50))))
 
-    def attack(self, skill, target):
-        target.hp -= self.damage * skill.coefficient
-        if target.side:
-            bar = scene.heroes_bars[target.position]
-        else:
-            bar = scene.enemies_bars[target.position]
-        bar.hp -= self.damage * skill.coefficient
+    def forward(self, skill, target):
+        self.target = target
+        self.cur_skill = skill
+
+        self.forward_move = True
+        self.iteration = 0
+        distance = 50 if self.side else -50
+        self.moving_x = (target.place[0] - distance - self.place[0]) / 30
+        self.moving_y = (target.place[1] - self.place[1]) / 30
+
+    def back(self):
+        self.backing = True
+        self.iteration = 0
+        self.moving_x = (self.place[0] - self.rect.x) / 30
+        self.moving_y = (self.place[1] - self.rect.y) / 30
 
     def update(self, *args):
+        global moving
         if self.hp <= 0:
             self.kill()
             if self in scene.heroes:
@@ -107,12 +128,72 @@ class Person(pygame.sprite.Sprite):
             else:
                 scene.enemies[scene.enemies.index(self)] = None
 
-        if args and args[0].type == pygame.MOUSEBUTTONDOWN and self.rect.collidepoint(args[0].pos):
-            scene.selected = self
+        if self.iteration == 30:
+            if self.forward_move:
+                self.forward_move = False
+                self.moving_x = 0
+                self.moving_y = 0
+                self.attacking = True
+                self.iteration = 0
+            elif self.attacking:
+                self.attacking = False
+                self.back()
+                self.target.hp -= self.damage * self.cur_skill.coefficient
+                if self.target.side:
+                    bar = scene.heroes_bars[self.target.position]
+                else:
+                    bar = scene.enemies_bars[self.target.position]
+                bar.hp -= self.damage * self.cur_skill.coefficient
+            elif self.backing:
+                self.backing = False
+                self.moving_x = 0
+                self.moving_y = 0
+                self.iteration = 0
+                self.target = None
+                self.cur_skill = None
+                next_turn()
+
+            elif self.get_damage:
+                scene.selected = None
+                self.get_damage = False
+
+        self.cur_image = 0
+
+        if self.forward_move or self.backing:
+            if self.iteration < 10:
+                self.cur_image = 17
+            elif self.iteration < 20:
+                self.cur_image = 18
+            else:
+                self.cur_image = 19
+        if self.attacking:
+            if self.iteration < 5:
+                self.cur_image = 20
+            elif self.iteration < 10:
+                self.cur_image = 21
+            elif self.iteration < 15:
+                self.cur_image = 22
+            else:
+                self.cur_image = 23
+                self.target.get_damage = True
+                self.target.iteration = 0
+        if self.get_damage:
+            if self.iteration < 5:
+                self.cur_image = 11
+            elif self.iteration < 10:
+                self.cur_image = 12
+            elif self.iteration < 15:
+                self.cur_image = 13
+            else:
+                self.cur_image = 14
+
         if self.side:
             self.image = self.frames[self.cur_image]
         else:
             self.image = pygame.transform.flip(self.frames[self.cur_image], True, False)
+
+        self.rect = self.rect.move(self.moving_x, self.moving_y)
+        self.iteration += 1
 
 
 class HPBar(pygame.sprite.Sprite):
@@ -152,17 +233,26 @@ class Skill(pygame.sprite.Sprite):
         global your_turn, moving
         if your_turn:
             if scene.selected is not None and args and args[0].type == pygame.MOUSEBUTTONDOWN and self.rect.collidepoint(args[0].pos):
-                scene.heroes[1].attack(self, scene.selected)
+                scene.heroes[1].forward(self, scene.selected)
                 your_turn = False
-                scene.pers_turning += 1
                 moving = False
 
 
 class Sky(pygame.sprite.Sprite):
-    def __init__(self, name):
+    def __init__(self, name, pos=0):
         super().__init__(all_sprites, background_sprites)
         self.image = pygame.transform.scale(load_image(name), (1200, 600))
         self.rect = self.image.get_rect()
+        self.rect.left += pos * 1200
+        self.dx = -1
+
+    def update(self, *args):
+        self.rect = self.rect.move(self.dx, 0)
+        if self.rect.left <= -1200:
+            self.reset()
+
+    def reset(self):
+        self.rect.left = 1200
 
 
 class Field(pygame.sprite.Sprite):
@@ -173,7 +263,8 @@ class Field(pygame.sprite.Sprite):
         self.rect = self.rect.move(0, height - 450)
 
 
-sky = Sky('sky.png')
+sky1 = Sky('sky.png')
+sky2 = Sky('sky.png', 1)
 field = Field('grass.jpg')
 
 
@@ -195,14 +286,13 @@ def next_turn():
                 targets = [x for x in scene.heroes if x is not None]
             target = random.choice(targets)
             technique = random.choice(active.skills)
-            active.attack(technique, target)
-            scene.pers_turning += 1
-            moving = False
+            active.forward(technique, target)
         else:
             your_turn = True
-    else:
-        scene.pers_turning += 1
-        moving = False
+    scene.pers_turning += 1
+    scene.selected = None
+    if active is None:
+        next_turn()
 
 
 def terminate():
@@ -211,24 +301,27 @@ def terminate():
 
 
 scene = Scene()
-scene.add_character(Person('none', load_image('SkeletonBase.png'), True, 0, False, [strike]))
+scene.add_character(Person('none', load_image('SkeletonBase.png'), True, 0, False, [strike], 100))
 sonny = Person('Sonny', load_image('SkeletonBase.png'), True, 1, True, [strike], 10500)
 scene.add_character(sonny)
-scene.add_character(Person('none', load_image('SkeletonBase.png'), True, 2, False, [strike]))
-scene.add_character(Person('none', load_image('bloodSkeletonBase.png'), False, 0, False, [strike]))
+scene.add_character(Person('none', load_image('SkeletonBase.png'), True, 2, False, [strike], 100))
+scene.add_character(Person('none', load_image('bloodSkeletonBase.png'), False, 0, False, [strike], 100))
 sceleton = Person('Sceleton', load_image('bloodSkeletonBase.png'), False, 1, False, [strike])
 scene.add_character(sceleton)
-scene.add_character(Person('none', load_image('bloodSkeletonBase.png'), False, 2, False, [strike]))
+scene.add_character(Person('none', load_image('bloodSkeletonBase.png'), False, 2, False, [strike], 100))
+next_turn()
 
 
 while True:
     for event in pygame.event.get():
-        all_sprites.update(event)
+        if event.type == pygame.MOUSEBUTTONDOWN:
+            for char in characters_sprites:
+                if char.rect.collidepoint(event.pos):
+                    scene.selected = char
         if event.type == pygame.QUIT:
             terminate()
     pygame.display.flip()
     screen.fill((255, 255, 255))
-    pygame.draw.rect(screen, 'gray', (0, 300, width, height))
     background_sprites.draw(screen)
     if scene.selected:
         rect = pygame.Rect(scene.selected.place[0] + 16, scene.selected.place[1] + 120, 65, 40)
@@ -237,7 +330,5 @@ while True:
     characters_sprites.draw(screen)
     bars_sprites.draw(screen)
     skills_sprites.draw(screen)
-    if not moving:
-        scene.selected = None
-        next_turn()
+    all_sprites.update(event)
     clock.tick(FPS)
