@@ -14,6 +14,7 @@ characters_sprites = pygame.sprite.Group()
 bars_sprites = pygame.sprite.Group()
 skills_sprites = pygame.sprite.Group()
 spells_sprites = pygame.sprite.Group()
+main_sprites = pygame.sprite.Group()
 bar_font = pygame.font.SysFont('Sans', 25)
 colors = {True: 'blue', False: 'red'}
 moving = False
@@ -299,7 +300,7 @@ class Skill(pygame.sprite.Sprite):
     def update(self, *args):
         global your_turn, moving
         self.rect.left = width
-        if scene.selected is not None and (scene.selected.side and self.to_hero or not scene.selected.side and self.to_enemy) and self in sonny.skills:
+        if scene.selected is not None and (scene.selected.side and self.to_hero or not scene.selected.side and self.to_enemy) and self in scene.heroes[1].skills:
             self.rect.left = 30 + self.pos * 60
         if your_turn:
             if scene.selected is not None and args and args[0].type == pygame.MOUSEBUTTONDOWN and self.rect.collidepoint(args[0].pos):
@@ -367,10 +368,6 @@ class Field(pygame.sprite.Sprite):
         self.rect = self.rect.move(0, height * 2 / 5)
 
 
-sky1 = Sky('sky.png')
-sky2 = Sky('sky.png', 1)
-field = Field('grass.jpg')
-
 strike = Skill('Icon.1_15.png', 1, 0, 'closed', True, False)
 fireball_spell = Spell('orange_fireball.png')
 fireball = Skill('Icon.1_24.png', 1, 2, 'ranged', True, False, fireball_spell)
@@ -379,7 +376,12 @@ heal = Skill('Icon.6_86.png', 2, 0, 'help', False, True)
 
 
 def next_turn():
-    global moving, your_turn
+    global world_map, moving, your_turn
+    if all([x is None for x in scene.heroes]) or all([x is None for x in scene.enemies]):
+        for i in all_sprites:
+            i.kill()
+        world_map = WorldMap()
+        return
     moving = True
     if scene.pers_turning % 6 < 3:
         active = scene.heroes[scene.pers_turning % 3]
@@ -404,26 +406,55 @@ def next_turn():
         next_turn()
 
 
+def make_world_map():
+    pass
+
+
 def terminate():
     pygame.quit()
     sys.exit()
 
 
 scene = Scene()
-scene.add_character(Person('hiller', load_image('SkeletonBase.png'), True, 0, False, [fireball, heal], 500))
-sonny = Person('Sonny', load_image('SkeletonBase.png'), True, 1, True, [strike, strong_strike, fireball, heal], 1500)
-scene.add_character(sonny)
-scene.add_character(Person('none', load_image('SkeletonBase.png'), True, 2, False, [strike, fireball], 500))
-scene.add_character(Person('none', load_image('bloodSkeletonBase.png'), False, 0, False, [strike, fireball], 500))
-sceleton = Person('Sceleton', load_image('bloodSkeletonBase.png'), False, 1, False, [strike, fireball])
-scene.add_character(sceleton)
-scene.add_character(Person('none', load_image('bloodSkeletonBase.png'), False, 2, False, [strike, fireball], 500))
-next_turn()
 
+
+def make_scene1():
+    global scene
+    scene.__init__()
+    scene.add_character(Person('Healer', load_image('SkeletonBase.png'), True, 0, False, [fireball, heal], 500))
+    scene.add_character(Person('Sonny', load_image('SkeletonBase.png'), True, 1, True, [strike, strong_strike, fireball, heal], 1500))
+    scene.add_character(Person('none', load_image('SkeletonBase.png'), True, 2, False, [strike, fireball], 500))
+    scene.add_character(Person('Sceleton', load_image('bloodSkeletonBase.png'), False, 1, False, [strike, fireball], 300))
+    Sky('sky.png')
+    Sky('sky.png', 1)
+    Field('grass.jpg')
+    next_turn()
+
+
+class MainMenu(pygame.sprite.Sprite):
+    def __init__(self):
+        super().__init__(all_sprites, main_sprites)
+        self.image = pygame.transform.scale(load_image('main_menu.jpg'), (width, height))
+        self.rect = self.image.get_rect()
+
+
+class WorldMap(pygame.sprite.Sprite):
+    def __init__(self):
+        super().__init__(all_sprites, main_sprites)
+        self.image = pygame.transform.scale(load_image('world_map.jpg'), (width, height))
+        self.rect = self.image.get_rect()
+
+
+main_menu = MainMenu()
+world_map = None
 
 while True:
     for event in pygame.event.get():
         if event.type == pygame.MOUSEBUTTONDOWN:
+            if main_menu:
+                main_menu.kill()
+                main_menu = None
+                make_scene1()
             for char in characters_sprites:
                 if char.rect.collidepoint(event.pos):
                     if your_turn:
@@ -432,14 +463,16 @@ while True:
             terminate()
     pygame.display.flip()
     screen.fill((255, 255, 255))
-    background_sprites.draw(screen)
-    if scene.selected:
-        rect = pygame.Rect(scene.selected.place[0] + 16, scene.selected.place[1] + 120, 65, 40)
-        pygame.draw.ellipse(screen, 'yellow', rect)
-        pygame.draw.ellipse(screen, 'black', rect, 2)
-    characters_sprites.draw(screen)
-    bars_sprites.draw(screen)
-    skills_sprites.draw(screen)
-    spells_sprites.draw(screen)
-    all_sprites.update(event)
+    main_sprites.draw(screen)
+    if scene:
+        background_sprites.draw(screen)
+        if scene.selected:
+            rect = pygame.Rect(scene.selected.place[0] + 16, scene.selected.place[1] + 120, 65, 40)
+            pygame.draw.ellipse(screen, 'yellow', rect)
+            pygame.draw.ellipse(screen, 'black', rect, 2)
+        characters_sprites.draw(screen)
+        bars_sprites.draw(screen)
+        skills_sprites.draw(screen)
+        spells_sprites.draw(screen)
+        all_sprites.update(event)
     clock.tick(FPS)
