@@ -66,7 +66,7 @@ class Scene:
 
 
 class Person(pygame.sprite.Sprite):
-    def __init__(self, name, sheet, side, position, hero, skills, hp=1000, damage=100, armor=5, speed=10):
+    def __init__(self, name, sheet, side, position, hero, skills, hp=1000, magic=100, damage=100, armor=5, speed=10):
         super().__init__(all_sprites, characters_sprites)
         self.frames = []
         self.cut_sheet(pygame.transform.scale(sheet, (960, 1920)), 10, 10)
@@ -74,6 +74,7 @@ class Person(pygame.sprite.Sprite):
         self.name = name
         self.max_hp = hp
         self.hp = hp
+        self.magic = magic
         self.damage = damage
         self.armor = armor
         self.speed = speed
@@ -83,6 +84,7 @@ class Person(pygame.sprite.Sprite):
         self.skills = skills
         self.cur_image = 0
         self.image = self.frames[self.cur_image]
+        self.place = None
 
         self.target = None
         self.cur_skill = None
@@ -96,6 +98,7 @@ class Person(pygame.sprite.Sprite):
         self.attacking = False
         self.getting_damage = False
         self.helping = False
+        self.shooting = False
 
     def cut_sheet(self, sheet, columns, rows):
         self.rect = pygame.Rect(0, 0, sheet.get_width() // columns, sheet.get_height() // rows)
@@ -104,11 +107,33 @@ class Person(pygame.sprite.Sprite):
                 frame_location = (self.rect.w * i, self.rect.h * j + 50)
                 self.frames.append(sheet.subsurface(pygame.Rect(frame_location, (self.rect.size[0], self.rect.size[1] - 50))))
 
+    def strategy(self):
+        medicinal = [x for x in self.skills if x.meaning == 'help']
+        if medicinal:
+            for person in sorted([x for x in (scene.heroes if self.side else scene.enemies) if x is not None], key=lambda x: x.hp):
+                if person.hp / person.max_hp < random.random():
+                    return person, random.choice(medicinal)
+        crippling = [x for x in self.skills if x.meaning in ['closed', 'ranged']]
+        if random.random() < 0.3:
+            return random.choice([x for x in (scene.enemies if self.side else scene.heroes) if x is not None]), random.choice(crippling)
+        return sorted([x for x in (scene.enemies if self.side else scene.heroes) if x is not None], key=lambda x: x.hp)[0], random.choice(crippling)
+
     def help(self, skill, target):
         self.target = target
         self.cur_skill = skill
         self.iteration = 0
         self.helping = True
+
+    def shoot(self, skill, target):
+        self.target = target
+        self.cur_skill = skill
+        self.iteration = 0
+        self.shooting = True
+        skill.spell.flip = not self.side
+        skill.spell.rect.left = self.place[0] + 60
+        skill.spell.rect.bottom = self.place[1] + 100
+        skill.spell.moving_x = (target.place[0] - self.place[0]) / 30
+        skill.spell.moving_y = (target.place[1] - self.place[1]) / 30
 
     def forward(self, skill, target):
         self.target = target
@@ -128,13 +153,6 @@ class Person(pygame.sprite.Sprite):
 
     def update(self, *args):
         global moving
-        if self.hp <= 0:
-            self.kill()
-            if self in scene.heroes:
-                scene.heroes[scene.heroes.index(self)] = None
-            else:
-                scene.enemies[scene.enemies.index(self)] = None
-
         if self.iteration == 30:
             if self.forward_move:
                 self.forward_move = False
@@ -158,23 +176,44 @@ class Person(pygame.sprite.Sprite):
                 self.iteration = 0
                 self.target = None
                 self.cur_skill = None
-                next_turn()
             elif self.helping:
                 self.helping = False
-                self.target.hp = min(self.target.max_hp, self.target.hp + self.damage * self.cur_skill.coefficient)
+                self.target.hp = min(self.target.max_hp, self.target.hp + self.magic * self.cur_skill.coefficient)
                 if self.target.side:
                     bar = scene.heroes_bars[self.target.position]
                 else:
                     bar = scene.enemies_bars[self.target.position]
-                bar.hp = min(bar.max_hp, bar.hp + self.damage * self.cur_skill.coefficient)
+                bar.hp = min(bar.max_hp, bar.hp + self.magic * self.cur_skill.coefficient)
                 self.iteration = 0
                 self.target = None
                 self.cur_skill = None
                 next_turn()
+            elif self.shooting:
+                self.iteration = 0
+                self.target.hp -= self.magic * self.cur_skill.coefficient
+                if self.target.side:
+                    bar = scene.heroes_bars[self.target.position]
+                else:
+                    bar = scene.enemies_bars[self.target.position]
+                bar.hp -= self.magic * self.cur_skill.coefficient
+                self.cur_skill.spell.down()
+                self.target.getting_damage = True
+                self.target.update()
+                self.target.iteration = 0
+                self.shooting = False
+                self.target = None
+                self.cur_skill = None
 
             elif self.getting_damage:
                 scene.selected = None
                 self.getting_damage = False
+                if self.hp <= 0:
+                    if self in scene.heroes:
+                        scene.heroes[self.position] = None
+                    else:
+                        scene.enemies[self.position] = None
+                    self.kill()
+                next_turn()
 
         self.cur_image = 0
 
@@ -196,7 +235,8 @@ class Person(pygame.sprite.Sprite):
                 self.cur_image = 23
                 if self.attacking:
                     self.target.getting_damage = True
-                self.target.iteration = 0
+                if self.target != self:
+                    self.target.iteration = 0
         if self.getting_damage:
             if self.iteration < 5:
                 self.cur_image = 11
@@ -206,11 +246,15 @@ class Person(pygame.sprite.Sprite):
                 self.cur_image = 13
             else:
                 self.cur_image = 14
+        if self.shooting:
+            if self.iteration < 5:
+                self.cur_image = 26
+            elif self.iteration < 10:
+                self.cur_image = 27
+            else:
+                self.cur_image = 28
 
-        if self.side:
-            self.image = self.frames[self.cur_image]
-        else:
-            self.image = pygame.transform.flip(self.frames[self.cur_image], True, False)
+        self.image = pygame.transform.flip(self.frames[self.cur_image], not self.side, False)
 
         self.rect = self.rect.move(self.moving_x, self.moving_y)
         self.iteration += 1
@@ -255,29 +299,47 @@ class Skill(pygame.sprite.Sprite):
     def update(self, *args):
         global your_turn, moving
         self.rect.left = width
-        if scene.selected is not None and (scene.selected.side and self.to_hero or not scene.selected.side and self.to_enemy):
+        if scene.selected is not None and (scene.selected.side and self.to_hero or not scene.selected.side and self.to_enemy) and self in sonny.skills:
             self.rect.left = 30 + self.pos * 60
         if your_turn:
             if scene.selected is not None and args and args[0].type == pygame.MOUSEBUTTONDOWN and self.rect.collidepoint(args[0].pos):
                 if self.meaning == 'closed':
                     scene.heroes[1].forward(self, scene.selected)
-                    your_turn = False
-                    moving = False
                 elif self.meaning == 'help':
                     scene.heroes[1].help(self, scene.selected)
-                    your_turn = False
-                    moving = False
+                elif self.meaning == 'ranged':
+                    scene.heroes[1].shoot(self, scene.selected)
+                your_turn = False
+                moving = False
 
 
 class Spell(pygame.sprite.Sprite):
-    def __init__(self):
+    def __init__(self, name):
         super().__init__(all_sprites, spells_sprites)
-        self.image = pygame.Surface((40, 40), pygame.SRCALPHA, 32)
-        pygame.draw.circle(self.image, 'red', (20, 20), 20)
-        self.rect = pygame.Rect((width, 0), (40, 40))
+        self.frames = []
+        self.cut_sheet(pygame.transform.scale(load_image(name), (192, 96)), 2, 1)
+        self.cur_image = 0
+        self.image = self.frames[0]
+        self.rect = self.image.get_rect()
+        self.flip = False
+        self.down()
+
+    def cut_sheet(self, sheet, columns, rows):
+        self.rect = pygame.Rect(0, 0, sheet.get_width() // columns, sheet.get_height() // rows)
+        for j in range(rows):
+            for i in range(columns):
+                frame_location = (self.rect.w * i, self.rect.h * j)
+                self.frames.append(sheet.subsurface(pygame.Rect(frame_location, (self.rect.size[0], self.rect.size[1]))))
 
     def update(self, *args):
-        pass
+        self.cur_image += 1
+        self.image = pygame.transform.flip(self.frames[self.cur_image % len(self.frames)], self.flip, False)
+        self.rect = self.rect.move(self.moving_x, self.moving_y)
+
+    def down(self):
+        self.moving_x = 0
+        self.moving_y = 0
+        self.rect.left = width
 
 
 class Sky(pygame.sprite.Sprite):
@@ -310,7 +372,7 @@ sky2 = Sky('sky.png', 1)
 field = Field('grass.jpg')
 
 strike = Skill('Icon.1_15.png', 1, 0, 'closed', True, False)
-fireball_spell = Spell()
+fireball_spell = Spell('orange_fireball.png')
 fireball = Skill('Icon.1_24.png', 1, 2, 'ranged', True, False, fireball_spell)
 strong_strike = Skill('Icon.3_31.png', 2, 1, 'closed', True, False)
 heal = Skill('Icon.6_86.png', 2, 0, 'help', False, True)
@@ -325,13 +387,15 @@ def next_turn():
         active = scene.enemies[scene.pers_turning % 3]
     if active is not None:
         if not active.hero:
-            if active.side:
-                targets = [x for x in scene.enemies if x is not None]
-            else:
-                targets = [x for x in scene.heroes if x is not None]
-            target = random.choice(targets)
-            technique = random.choice(active.skills)
-            active.forward(technique, target)
+            tactic = active.strategy()
+            target = tactic[0]
+            technique = tactic[1]
+            if technique.meaning == 'closed':
+                active.forward(technique, target)
+            elif technique.meaning == 'help':
+                active.help(technique, target)
+            elif technique.meaning == 'ranged':
+                active.shoot(technique, target)
         else:
             your_turn = True
     scene.pers_turning += 1
@@ -346,14 +410,14 @@ def terminate():
 
 
 scene = Scene()
-scene.add_character(Person('none', load_image('SkeletonBase.png'), True, 0, False, [strike], 1000))
-sonny = Person('Sonny', load_image('SkeletonBase.png'), True, 1, True, [strike, strong_strike], 10500)
+scene.add_character(Person('hiller', load_image('SkeletonBase.png'), True, 0, False, [fireball, heal], 500))
+sonny = Person('Sonny', load_image('SkeletonBase.png'), True, 1, True, [strike, strong_strike, fireball, heal], 1500)
 scene.add_character(sonny)
-scene.add_character(Person('none', load_image('SkeletonBase.png'), True, 2, False, [strike], 1000))
-scene.add_character(Person('none', load_image('bloodSkeletonBase.png'), False, 0, False, [strike], 1000))
-sceleton = Person('Sceleton', load_image('bloodSkeletonBase.png'), False, 1, False, [strike])
+scene.add_character(Person('none', load_image('SkeletonBase.png'), True, 2, False, [strike, fireball], 500))
+scene.add_character(Person('none', load_image('bloodSkeletonBase.png'), False, 0, False, [strike, fireball], 500))
+sceleton = Person('Sceleton', load_image('bloodSkeletonBase.png'), False, 1, False, [strike, fireball])
 scene.add_character(sceleton)
-scene.add_character(Person('none', load_image('bloodSkeletonBase.png'), False, 2, False, [strike], 1000))
+scene.add_character(Person('none', load_image('bloodSkeletonBase.png'), False, 2, False, [strike, fireball], 500))
 next_turn()
 
 
