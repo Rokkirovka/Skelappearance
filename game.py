@@ -6,7 +6,7 @@ import random
 pygame.init()
 size = width, height = 1200, 800
 screen = pygame.display.set_mode(size)
-FPS = 40
+FPS = 50
 clock = pygame.time.Clock()
 all_sprites = pygame.sprite.Group()
 background_sprites = pygame.sprite.Group()
@@ -164,12 +164,12 @@ class Person(pygame.sprite.Sprite):
             elif self.attacking:
                 self.attacking = False
                 self.back()
-                self.target.hp -= self.damage * self.cur_skill.coefficient
+                self.target.hp -= self.damage * self.cur_skill.coefficient * (1 - self.target.armor / 100)
                 if self.target.side:
                     bar = scene.heroes_bars[self.target.position]
                 else:
                     bar = scene.enemies_bars[self.target.position]
-                bar.hp -= self.damage * self.cur_skill.coefficient
+                bar.hp -= self.damage * self.cur_skill.coefficient * (1 - self.target.armor / 100)
             elif self.backing:
                 self.backing = False
                 self.moving_x = 0
@@ -280,7 +280,7 @@ class HPBar(pygame.sprite.Sprite):
 
         self.percent = int(self.hp / self.max_hp * 100)
         pygame.draw.rect(self.image, 'green', (2, 2, 246, 26))
-        pygame.draw.rect(self.image, 'red', (self.percent * 2.5, 2, 250 - self.percent * 2.5 - 2, 26))
+        pygame.draw.rect(self.image, 'red', (self.percent * 2.5, 2, 250 - self.percent * 2.5 - 1, 26))
         self.image.blit(self.name, (5, 0))
 
 
@@ -390,8 +390,7 @@ class Field(pygame.sprite.Sprite):
 
 strike = Skill('Icon.1_15.png', 1, 0, 'closed', True, False)
 fireball_spell = Spell('orange_fireball.png')
-fireball = Skill('Icon.1_24.png', 1, 2, 'ranged', True, False, fireball_spell)
-strong_strike = Skill('Icon.3_31.png', 2, 1, 'closed', True, False)
+fireball = Skill('Icon.1_24.png', 0.8, 1, 'ranged', True, False, fireball_spell)
 heal = Skill('Icon.6_86.png', 2, 0, 'help', False, True)
 
 
@@ -447,7 +446,7 @@ def make_scene1():
     world_map.kill()
     world_map = None
     scene.__init__()
-    scene.add_character(Person('Sonny', load_image('SkeletonBase.png'), True, 1, True, [strike, strong_strike, fireball, heal], 1500))
+    scene.add_character(Person('Sonny', load_image('SkeletonBase.png'), True, 1, True, [strike, fireball, heal], 1500))
     scene.add_character(Person('Warrior', load_image('warrior.png'), False, 1, False, [strike], 500))
     Sky('sky.png')
     Sky('sky.png', 1)
@@ -460,7 +459,7 @@ def make_scene2():
     world_map.kill()
     world_map = None
     scene.__init__()
-    scene.add_character(Person('Sonny', load_image('SkeletonBase.png'), True, 1, True, [strike, strong_strike, fireball, heal], 1500))
+    scene.add_character(Person('Sonny', load_image('SkeletonBase.png'), True, 1, True, [strike, fireball, heal], 1500))
     scene.add_character(Person('Warrior', load_image('warrior.png'), False, 1, False, [strike], 500))
     scene.add_character(Person('Knight', load_image('knight.png'), False, 2, False, [strike], 800, 0, 200, 10))
     Sky('dark_sky.png')
@@ -476,7 +475,7 @@ def make_scene3():
     world_map.kill()
     world_map = None
     scene.__init__()
-    scene.add_character(Person('Sonny', load_image('SkeletonBase.png'), True, 1, True, [strike, strong_strike, fireball, heal], 1500))
+    scene.add_character(Person('Sonny', load_image('SkeletonBase.png'), True, 1, True, [strike, fireball, heal], 1500))
     scene.add_character(Person('Veradux', load_image('bloodSkeletonBase.png'), True, 2, False, [fireball, heal], 600, 150, 50, 3))
     scene.add_character(Person('Mage', load_image('mage.png'), False, 0, False, [fireball, heal], 600, 150, 50, 3))
     scene.add_character(Person('Warrior', load_image('warrior.png'), False, 1, False, [strike], 500))
@@ -492,9 +491,9 @@ def make_scene4():
     world_map.kill()
     world_map = None
     scene.__init__()
-    scene.add_character(Person('Sonny', load_image('SkeletonBase.png'), True, 1, True, [strike, strong_strike, fireball, heal], 1000))
+    scene.add_character(Person('Sonny', load_image('SkeletonBase.png'), True, 1, True, [strike, fireball, heal], 1000))
     scene.add_character(Person('Veradux', load_image('bloodSkeletonBase.png'), True, 2, False, [fireball, heal], 1000))
-    scene.add_character(Person('Satyr', load_image('mvSatyr.png'), False, 1, False, [strike, heal, fireball], 1500))
+    scene.add_character(Person('Satyr', load_image('mvSatyr.png'), False, 1, False, [strike, heal, fireball], 3000, 400, 400, 20))
     Sky('night_sky.png')
     Sky('night_sky.png', 1)
     Field('dark_grass.jpg')
