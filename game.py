@@ -6,7 +6,7 @@ import random
 pygame.init()
 size = width, height = 1200, 800
 screen = pygame.display.set_mode(size)
-FPS = 50
+FPS = 40
 clock = pygame.time.Clock()
 all_sprites = pygame.sprite.Group()
 background_sprites = pygame.sprite.Group()
@@ -439,7 +439,7 @@ def terminate():
 
 scene = Scene()
 battle_number = 1
-battles_access = [True, True, False, False, False]
+battles_access = [True, True, True, True, True]
 
 
 def make_scene1():
@@ -448,7 +448,7 @@ def make_scene1():
     world_map = None
     scene.__init__()
     scene.add_character(Person('Sonny', load_image('SkeletonBase.png'), True, 1, True, [strike, strong_strike, fireball, heal], 1500))
-    scene.add_character(Person('Sceleton', load_image('bloodSkeletonBase.png'), False, 1, False, [strike], 300))
+    scene.add_character(Person('Warrior', load_image('warrior.png'), False, 1, False, [strike], 500))
     Sky('sky.png')
     Sky('sky.png', 1)
     Field('grass.jpg')
@@ -461,8 +461,8 @@ def make_scene2():
     world_map = None
     scene.__init__()
     scene.add_character(Person('Sonny', load_image('SkeletonBase.png'), True, 1, True, [strike, strong_strike, fireball, heal], 1500))
-    scene.add_character(Person('Sceleton', load_image('bloodSkeletonBase.png'), False, 1, False, [strike], 300))
-    scene.add_character(Person('Sceleton', load_image('bloodSkeletonBase.png'), False, 2, False, [strike], 300))
+    scene.add_character(Person('Warrior', load_image('warrior.png'), False, 1, False, [strike], 500))
+    scene.add_character(Person('Knight', load_image('knight.png'), False, 2, False, [strike], 800, 0, 200, 10))
     Sky('dark_sky.png')
     Sky('dark_sky.png', 1)
     Field('grass.jpg')
@@ -477,9 +477,10 @@ def make_scene3():
     world_map = None
     scene.__init__()
     scene.add_character(Person('Sonny', load_image('SkeletonBase.png'), True, 1, True, [strike, strong_strike, fireball, heal], 1500))
-    scene.add_character(Person('Sceleton', load_image('bloodSkeletonBase.png'), False, 1, False, [strike], 300))
-    scene.add_character(Person('Sceleton', load_image('bloodSkeletonBase.png'), False, 2, False, [strike], 300))
-    scene.add_character(Person('Sceleton', load_image('bloodSkeletonBase.png'), False, 0, False, [strike], 300))
+    scene.add_character(Person('Veradux', load_image('bloodSkeletonBase.png'), True, 2, False, [fireball, heal], 600, 150, 50, 3))
+    scene.add_character(Person('Mage', load_image('mage.png'), False, 0, False, [fireball, heal], 600, 150, 50, 3))
+    scene.add_character(Person('Warrior', load_image('warrior.png'), False, 1, False, [strike], 500))
+    scene.add_character(Person('Knight', load_image('knight.png'), False, 2, False, [strike], 800, 0, 200, 10))
     Sky('next_sky.png')
     Sky('next_sky.png', 1)
     Field('bridge.png')
@@ -491,10 +492,9 @@ def make_scene4():
     world_map.kill()
     world_map = None
     scene.__init__()
-    scene.add_character(Person('Sonny', load_image('SkeletonBase.png'), True, 1, True, [strike, strong_strike, fireball, heal], 1500))
-    scene.add_character(Person('Sceleton', load_image('bloodSkeletonBase.png'), False, 1, False, [strike], 300))
-    scene.add_character(Person('Sceleton', load_image('bloodSkeletonBase.png'), False, 2, False, [strike], 300))
-    scene.add_character(Person('Sceleton', load_image('bloodSkeletonBase.png'), False, 0, False, [strike], 300))
+    scene.add_character(Person('Sonny', load_image('SkeletonBase.png'), True, 1, True, [strike, strong_strike, fireball, heal], 1000))
+    scene.add_character(Person('Veradux', load_image('bloodSkeletonBase.png'), True, 2, False, [fireball, heal], 1000))
+    scene.add_character(Person('Satyr', load_image('mvSatyr.png'), False, 1, False, [strike, heal, fireball], 1500))
     Sky('night_sky.png')
     Sky('night_sky.png', 1)
     Field('dark_grass.jpg')
