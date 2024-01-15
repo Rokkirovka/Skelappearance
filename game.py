@@ -360,10 +360,30 @@ class Sky(pygame.sprite.Sprite):
         self.rect.left = 1200
 
 
+class Tree(pygame.sprite.Sprite):
+    def __init__(self, pos):
+        super().__init__(all_sprites, background_sprites)
+        trees = ['brown tree2.png', 'brown_tree.png', 'green tree.png']
+        self.frames = []
+        self.cut_sheet(pygame.transform.scale(load_image(random.choice(trees)), (672, 384)), 2, 1)
+        self.cur_image = random.randint(0, 1)
+        self.image = self.frames[self.cur_image]
+        self.rect = self.image.get_rect()
+        self.rect.left = pos * 180 - 100
+        self.rect.bottom = height * 2 / 5 + 100
+
+    def cut_sheet(self, sheet, columns, rows):
+        self.rect = pygame.Rect(0, 0, sheet.get_width() // columns, sheet.get_height() // rows)
+        for j in range(rows):
+            for i in range(columns):
+                frame_location = (self.rect.w * i, self.rect.h * j)
+                self.frames.append(sheet.subsurface(pygame.Rect(frame_location, (self.rect.size[0], self.rect.size[1]))))
+
+
 class Field(pygame.sprite.Sprite):
     def __init__(self, name):
         super().__init__(all_sprites, background_sprites)
-        self.image = pygame.transform.scale(load_image(name), (width, height / 3 * 5))
+        self.image = pygame.transform.scale(load_image(name), (width, height / 5 * 3))
         self.rect = self.image.get_rect()
         self.rect = self.rect.move(0, height * 2 / 5)
 
@@ -376,12 +396,18 @@ heal = Skill('Icon.6_86.png', 2, 0, 'help', False, True)
 
 
 def next_turn():
-    global world_map, moving, your_turn
+    global world_map, moving, your_turn, battle_number, battles_access
     if all([x is None for x in scene.heroes]) or all([x is None for x in scene.enemies]):
         for i in all_sprites:
-            i.kill()
+            if i not in spells_sprites and i not in skills_sprites:
+                i.kill()
         world_map = WorldMap()
-        return
+        if all([x is None for x in scene.enemies]):
+            if battle_number < len(battles_access) - 1:
+                battles_access[battle_number] = False
+                battles_access[battle_number + 1] = True
+                battle_number += 1
+        return 1
     moving = True
     if scene.pers_turning % 6 < 3:
         active = scene.heroes[scene.pers_turning % 3]
@@ -406,28 +432,72 @@ def next_turn():
         next_turn()
 
 
-def make_world_map():
-    pass
-
-
 def terminate():
     pygame.quit()
     sys.exit()
 
 
 scene = Scene()
+battle_number = 1
+battles_access = [True, True, False, False, False]
 
 
 def make_scene1():
-    global scene
+    global scene, world_map
+    world_map.kill()
+    world_map = None
     scene.__init__()
-    scene.add_character(Person('Healer', load_image('SkeletonBase.png'), True, 0, False, [fireball, heal], 500))
     scene.add_character(Person('Sonny', load_image('SkeletonBase.png'), True, 1, True, [strike, strong_strike, fireball, heal], 1500))
-    scene.add_character(Person('none', load_image('SkeletonBase.png'), True, 2, False, [strike, fireball], 500))
-    scene.add_character(Person('Sceleton', load_image('bloodSkeletonBase.png'), False, 1, False, [strike, fireball], 300))
+    scene.add_character(Person('Sceleton', load_image('bloodSkeletonBase.png'), False, 1, False, [strike], 300))
     Sky('sky.png')
     Sky('sky.png', 1)
     Field('grass.jpg')
+    next_turn()
+
+
+def make_scene2():
+    global scene, world_map
+    world_map.kill()
+    world_map = None
+    scene.__init__()
+    scene.add_character(Person('Sonny', load_image('SkeletonBase.png'), True, 1, True, [strike, strong_strike, fireball, heal], 1500))
+    scene.add_character(Person('Sceleton', load_image('bloodSkeletonBase.png'), False, 1, False, [strike], 300))
+    scene.add_character(Person('Sceleton', load_image('bloodSkeletonBase.png'), False, 2, False, [strike], 300))
+    Sky('dark_sky.png')
+    Sky('dark_sky.png', 1)
+    Field('grass.jpg')
+    for i in range(8):
+        Tree(i)
+    next_turn()
+
+
+def make_scene3():
+    global scene, world_map
+    world_map.kill()
+    world_map = None
+    scene.__init__()
+    scene.add_character(Person('Sonny', load_image('SkeletonBase.png'), True, 1, True, [strike, strong_strike, fireball, heal], 1500))
+    scene.add_character(Person('Sceleton', load_image('bloodSkeletonBase.png'), False, 1, False, [strike], 300))
+    scene.add_character(Person('Sceleton', load_image('bloodSkeletonBase.png'), False, 2, False, [strike], 300))
+    scene.add_character(Person('Sceleton', load_image('bloodSkeletonBase.png'), False, 0, False, [strike], 300))
+    Sky('next_sky.png')
+    Sky('next_sky.png', 1)
+    Field('bridge.png')
+    next_turn()
+
+
+def make_scene4():
+    global scene, world_map
+    world_map.kill()
+    world_map = None
+    scene.__init__()
+    scene.add_character(Person('Sonny', load_image('SkeletonBase.png'), True, 1, True, [strike, strong_strike, fireball, heal], 1500))
+    scene.add_character(Person('Sceleton', load_image('bloodSkeletonBase.png'), False, 1, False, [strike], 300))
+    scene.add_character(Person('Sceleton', load_image('bloodSkeletonBase.png'), False, 2, False, [strike], 300))
+    scene.add_character(Person('Sceleton', load_image('bloodSkeletonBase.png'), False, 0, False, [strike], 300))
+    Sky('night_sky.png')
+    Sky('night_sky.png', 1)
+    Field('dark_grass.jpg')
     next_turn()
 
 
@@ -444,6 +514,17 @@ class WorldMap(pygame.sprite.Sprite):
         self.image = pygame.transform.scale(load_image('world_map.jpg'), (width, height))
         self.rect = self.image.get_rect()
 
+    def update(self, *args):
+        self.__init__()
+        if battles_access[1]:
+            pygame.draw.circle(self.image, 'red', (800, 250), 20)
+        if battles_access[2]:
+            pygame.draw.circle(self.image, 'red', (600, 320), 20)
+        if battles_access[3]:
+            pygame.draw.circle(self.image, 'red', (410, 330), 20)
+        if battles_access[4]:
+            pygame.draw.circle(self.image, 'red', (170, 470), 20)
+
 
 main_menu = MainMenu()
 world_map = None
@@ -454,7 +535,16 @@ while True:
             if main_menu:
                 main_menu.kill()
                 main_menu = None
-                make_scene1()
+                world_map = WorldMap()
+            elif world_map:
+                if 779 < event.pos[0] < 821 and 229 < event.pos[1] < 271 and battles_access[1]:
+                    make_scene1()
+                elif 579 < event.pos[0] < 621 and 299 < event.pos[1] < 341 and battles_access[2]:
+                    make_scene2()
+                elif 389 < event.pos[0] < 431 and 319 < event.pos[1] < 351 and battles_access[3]:
+                    make_scene3()
+                elif 149 < event.pos[0] < 191 and 449 < event.pos[1] < 491 and battles_access[4]:
+                    make_scene4()
             for char in characters_sprites:
                 if char.rect.collidepoint(event.pos):
                     if your_turn:
