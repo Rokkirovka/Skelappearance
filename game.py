@@ -52,7 +52,6 @@ class Scene:
         if char.side:
             self.heroes[char.position] = char
             char.place = (200 - char.position * 40, height - 250 - 150 * (2 - char.position))
-            char.rect = char.rect.move(char.place)
 
             self.heroes_bars[char.position] = bar
             bar.rect = pygame.Rect(100, 40 + char.position * 40, 250, 20)
@@ -60,14 +59,15 @@ class Scene:
         else:
             self.enemies[char.position] = char
             char.place = (width - 300 + char.position * 40, height - 250 - 150 * (2 - char.position))
-            char.rect = char.rect.move(char.place)
 
             self.enemies_bars[char.position] = bar
             bar.rect = pygame.Rect(width - 350, 40 + char.position * 40, 250, 20)
+        char.rect.left = char.place[0]
+        char.rect.top = char.place[1]
 
 
 class Person(pygame.sprite.Sprite):
-    def __init__(self, name, sheet, side, position, hero, skills, hp=1000, magic=100, damage=100, armor=5, speed=10):
+    def __init__(self, name, sheet, side, position, hero, skills, hp=1000, magic=100, damage=100, armor=5):
         super().__init__(all_sprites, characters_sprites)
         self.frames = []
         self.cut_sheet(pygame.transform.scale(sheet, (960, 1920)), 10, 10)
@@ -78,7 +78,6 @@ class Person(pygame.sprite.Sprite):
         self.magic = magic
         self.damage = damage
         self.armor = armor
-        self.speed = speed
         self.position = position
         self.side = side
         self.hero = hero
@@ -86,6 +85,7 @@ class Person(pygame.sprite.Sprite):
         self.cur_image = 0
         self.image = self.frames[self.cur_image]
         self.place = None
+        self.update_points = 0
 
         self.target = None
         self.cur_skill = None
@@ -102,7 +102,7 @@ class Person(pygame.sprite.Sprite):
         self.shooting = False
 
     def cut_sheet(self, sheet, columns, rows):
-        self.rect = pygame.Rect(0, 0, sheet.get_width() // columns, sheet.get_height() // rows)
+        self.rect = pygame.Rect(width, 0, sheet.get_width() // columns, sheet.get_height() // rows)
         for j in range(rows):
             for i in range(columns):
                 frame_location = (self.rect.w * i, self.rect.h * j + 50)
@@ -118,6 +118,10 @@ class Person(pygame.sprite.Sprite):
         if random.random() < 0.3:
             return random.choice([x for x in (scene.enemies if self.side else scene.heroes) if x is not None]), random.choice(crippling)
         return sorted([x for x in (scene.enemies if self.side else scene.heroes) if x is not None], key=lambda x: x.hp)[0], random.choice(crippling)
+
+    def recovery(self):
+        self.hp = self.max_hp
+        self.rect.left = width
 
     def help(self, skill, target):
         self.target = target
@@ -165,6 +169,7 @@ class Person(pygame.sprite.Sprite):
                 self.attacking = False
                 self.back()
                 self.target.hp -= self.damage * self.cur_skill.coefficient * (1 - self.target.armor / 100)
+                ShiftHP(self.target.place, self.damage * self.cur_skill.coefficient * (1 - self.target.armor / 100), True)
                 if self.target.side:
                     bar = scene.heroes_bars[self.target.position]
                 else:
@@ -185,6 +190,7 @@ class Person(pygame.sprite.Sprite):
                 else:
                     bar = scene.enemies_bars[self.target.position]
                 bar.hp = min(bar.max_hp, bar.hp + self.magic * self.cur_skill.coefficient)
+                ShiftHP(self.target.place, self.magic * self.cur_skill.coefficient, False)
                 self.iteration = 0
                 self.target = None
                 self.cur_skill = None
@@ -192,6 +198,7 @@ class Person(pygame.sprite.Sprite):
             elif self.shooting:
                 self.iteration = 0
                 self.target.hp -= self.magic * self.cur_skill.coefficient
+                ShiftHP(self.target.place, self.magic * self.cur_skill.coefficient, True)
                 if self.target.side:
                     bar = scene.heroes_bars[self.target.position]
                 else:
@@ -213,7 +220,7 @@ class Person(pygame.sprite.Sprite):
                         scene.heroes[self.position] = None
                     else:
                         scene.enemies[self.position] = None
-                    self.kill()
+                    self.recovery()
                 next_turn()
 
         self.cur_image = 0
@@ -279,9 +286,29 @@ class HPBar(pygame.sprite.Sprite):
                 scene.enemies_bars[scene.enemies_bars.index(self)] = None
 
         self.percent = int(self.hp / self.max_hp * 100)
+        hp = bar_font.render(str(int(self.hp)), True, (0, 0, 0))
         pygame.draw.rect(self.image, 'green', (2, 2, 246, 26))
         pygame.draw.rect(self.image, 'red', (self.percent * 2.5, 2, 250 - self.percent * 2.5 - 1, 26))
         self.image.blit(self.name, (5, 0))
+        self.image.blit(hp, (190, 0))
+
+
+class ShiftHP(pygame.sprite.Sprite):
+    def __init__(self, pos, value, damage):
+        super().__init__(all_sprites, bars_sprites)
+        self.image = pygame.Surface((len(str(value)) * 40, 40), pygame.SRCALPHA, 32)
+        color = 'red' if damage else 'green'
+        font = pygame.font.SysFont('Sans', 40)
+        name = font.render(str(int(value)), True, color)
+        self.image.blit(name, (5, 0))
+        self.rect = pygame.Rect(pos, (len(str(value)) * 40, 40))
+        self.iteration = 0
+
+    def update(self, *args):
+        self.iteration += 1
+        self.rect = self.rect.move(0, -2)
+        if self.iteration == 40:
+            self.kill()
 
 
 class Skill(pygame.sprite.Sprite):
@@ -397,9 +424,12 @@ heal = Skill('Icon.6_86.png', 2, 0, 'help', False, True)
 def next_turn():
     global world_map, moving, your_turn, battle_number, battles_access
     if all([x is None for x in scene.heroes]) or all([x is None for x in scene.enemies]):
+        for i in characters_sprites:
+            i.recovery()
         for i in all_sprites:
-            if i not in spells_sprites and i not in skills_sprites:
+            if i not in spells_sprites and i not in skills_sprites and i not in characters_sprites:
                 i.kill()
+        Sonny.update_points += 5
         world_map = WorldMap()
         if all([x is None for x in scene.enemies]):
             if battle_number < len(battles_access) - 1:
@@ -440,14 +470,21 @@ scene = Scene()
 battle_number = 1
 battles_access = [True, True, True, True, True]
 
+Sonny = Person('Sonny', load_image('SkeletonBase.png'), True, 1, True, [strike, fireball, heal], 1500, 10000, 10000)
+Veradux = Person('Veradux', load_image('bloodSkeletonBase.png'), True, 2, False, [fireball, heal], 600, 150, 50, 3)
+Warrior = Person('Warrior', load_image('warrior.png'), False, 1, False, [strike], 500)
+Knight = Person('Knight', load_image('knight.png'), False, 2, False, [strike], 800, 0, 200, 10)
+Mage = Person('Mage', load_image('mage.png'), False, 0, False, [fireball, heal], 600, 150, 50, 3)
+Satyr = Person('Satyr', load_image('mvSatyr.png'), False, 1, False, [strike, heal, fireball], 3000, 400, 400, 20)
+
 
 def make_scene1():
     global scene, world_map
     world_map.kill()
     world_map = None
     scene.__init__()
-    scene.add_character(Person('Sonny', load_image('SkeletonBase.png'), True, 1, True, [strike, fireball, heal], 1500))
-    scene.add_character(Person('Warrior', load_image('warrior.png'), False, 1, False, [strike], 500))
+    scene.add_character(Sonny)
+    scene.add_character(Warrior)
     Sky('sky.png')
     Sky('sky.png', 1)
     Field('grass.jpg')
@@ -459,9 +496,9 @@ def make_scene2():
     world_map.kill()
     world_map = None
     scene.__init__()
-    scene.add_character(Person('Sonny', load_image('SkeletonBase.png'), True, 1, True, [strike, fireball, heal], 1500))
-    scene.add_character(Person('Warrior', load_image('warrior.png'), False, 1, False, [strike], 500))
-    scene.add_character(Person('Knight', load_image('knight.png'), False, 2, False, [strike], 800, 0, 200, 10))
+    scene.add_character(Sonny)
+    scene.add_character(Warrior)
+    scene.add_character(Knight)
     Sky('dark_sky.png')
     Sky('dark_sky.png', 1)
     Field('grass.jpg')
@@ -475,11 +512,17 @@ def make_scene3():
     world_map.kill()
     world_map = None
     scene.__init__()
-    scene.add_character(Person('Sonny', load_image('SkeletonBase.png'), True, 1, True, [strike, fireball, heal], 1500))
-    scene.add_character(Person('Veradux', load_image('bloodSkeletonBase.png'), True, 2, False, [fireball, heal], 600, 150, 50, 3))
-    scene.add_character(Person('Mage', load_image('mage.png'), False, 0, False, [fireball, heal], 600, 150, 50, 3))
-    scene.add_character(Person('Warrior', load_image('warrior.png'), False, 1, False, [strike], 500))
-    scene.add_character(Person('Knight', load_image('knight.png'), False, 2, False, [strike], 800, 0, 200, 10))
+
+    scene.add_character(Sonny)
+    scene.add_character(Veradux)
+
+    Mage.position = 0
+    scene.add_character(Mage)
+    Warrior.position = 1
+    scene.add_character(Warrior)
+    Knight.position = 2
+    scene.add_character(Knight)
+
     Sky('next_sky.png')
     Sky('next_sky.png', 1)
     Field('bridge.png')
@@ -491,9 +534,9 @@ def make_scene4():
     world_map.kill()
     world_map = None
     scene.__init__()
-    scene.add_character(Person('Sonny', load_image('SkeletonBase.png'), True, 1, True, [strike, fireball, heal], 1000))
-    scene.add_character(Person('Veradux', load_image('bloodSkeletonBase.png'), True, 2, False, [fireball, heal], 1000))
-    scene.add_character(Person('Satyr', load_image('mvSatyr.png'), False, 1, False, [strike, heal, fireball], 3000, 400, 400, 20))
+    scene.add_character(Sonny)
+    scene.add_character(Veradux)
+    scene.add_character(Satyr)
     Sky('night_sky.png')
     Sky('night_sky.png', 1)
     Field('dark_grass.jpg')
@@ -504,6 +547,12 @@ class MainMenu(pygame.sprite.Sprite):
     def __init__(self):
         super().__init__(all_sprites, main_sprites)
         self.image = pygame.transform.scale(load_image('main_menu.jpg'), (width, height))
+        font = pygame.font.SysFont('monospaced', 100)
+        name = font.render('SKELAPPERANCE DEMO', True, (0, 0, 0))
+        self.image.blit(name, (170, 300))
+        font = pygame.font.SysFont('monospaced', 90)
+        name = font.render('нажмите в любом месте', True, (0, 0, 0))
+        self.image.blit(name, (230, 450))
         self.rect = self.image.get_rect()
 
 
@@ -511,6 +560,9 @@ class WorldMap(pygame.sprite.Sprite):
     def __init__(self):
         super().__init__(all_sprites, main_sprites)
         self.image = pygame.transform.scale(load_image('world_map.jpg'), (width, height))
+        self.upgrade = pygame.transform.scale(load_image('upgrade.png'), (200, 60))
+        self.image.blit(self.upgrade, (width - 200, height - 60))
+        self.upgrades_rect = pygame.Rect(width - 200, height - 60, 200, 60)
         self.rect = self.image.get_rect()
 
     def update(self, *args):
@@ -525,6 +577,71 @@ class WorldMap(pygame.sprite.Sprite):
             pygame.draw.circle(self.image, 'red', (170, 470), 20)
 
 
+class MenuUpgrade(pygame.sprite.Sprite):
+    def __init__(self):
+        super().__init__(all_sprites, main_sprites)
+        self.image = pygame.Surface((width, height))
+        pygame.draw.rect(self.image, 'white', pygame.Rect(0, 0, width / 3, height / 3 * 2))
+        pygame.draw.rect(self.image, 'gray', pygame.Rect(0, height / 3 * 2, width / 3, height / 3))
+        pygame.draw.rect(self.image, 'white', pygame.Rect(width / 3, height / 3 * 2, width / 3 * 2, height / 3))
+        self.close = pygame.transform.scale(load_image('close.png', -1), (80, 75))
+        self.close_rect = pygame.Rect(width - 80, 0, 80, 75)
+        self.image.blit(self.close, (width - 80, 0))
+        self.sonny_head = pygame.transform.scale(load_image('sonny_head.png', -1), (150, 120))
+        pygame.draw.rect(self.image, 'black', (0, 400, 150, 135), 7)
+        self.veradux_head = pygame.transform.scale(load_image('veradux_head.png', -1), (150, 120))
+        pygame.draw.rect(self.image, 'black', (170, 400, 150, 135), 7)
+        self.image.blit(self.sonny_head, (0, 400))
+        self.sonny_rect = self.sonny_head.get_rect()
+        self.sonny_rect.left = 0
+        self.sonny_rect.top = 400
+        self.image.blit(self.veradux_head, (170, 400))
+        self.veradux_rect = self.veradux_head.get_rect()
+        self.veradux_rect.left = 170
+        self.veradux_rect.top = 400
+        self.rect = self.image.get_rect()
+        self.change(Sonny)
+        self.changed = Sonny
+
+    def update(self, *args):
+        self.change(self.changed)
+        if args and args[0].type == pygame.MOUSEBUTTONDOWN:
+            if self.sonny_rect.collidepoint(args[0].pos):
+                self.change(Sonny)
+            if self.veradux_rect.collidepoint(args[0].pos):
+                self.change(Veradux)
+
+    def change(self, pers):
+        self.changed = pers
+        self.plus = bar_font.render('+', True, (0, 0, 0))
+
+        pygame.draw.rect(self.image, 'gray', pygame.Rect(0, height / 3 * 2, width / 3, height / 3))
+        self.hp = bar_font.render('HP: ' + str(int(pers.hp)), True, (0, 0, 0))
+        self.add_hp_rect = pygame.Rect(140, 590, 30, 30)
+
+        self.magic = bar_font.render('Magic: ' + str(int(pers.magic)), True, (0, 0, 0))
+        self.add_magic_rect = pygame.Rect(140, 640, 30, 30)
+
+        self.armor = bar_font.render('Armor: ' + str(int(pers.armor)) + '%', True, (0, 0, 0))
+        self.add_armor_rect = pygame.Rect(140, 740, 30, 30)
+
+        self.points = bar_font.render('Available points: ' + str(pers.update_points), True, (0, 0, 0))
+
+        self.strength = bar_font.render('Strength: ' + str(int(pers.damage)), True, (0, 0, 0))
+        self.add_strength_rect = pygame.Rect(140, 690, 30, 30)
+
+        self.image.blit(self.points, (10, 550))
+        self.image.blit(self.hp, (10, 600))
+        self.image.blit(self.plus, (150, 600))
+        self.image.blit(self.magic, (10, 650))
+        self.image.blit(self.plus, (150, 650))
+        self.image.blit(self.strength, (10, 700))
+        self.image.blit(self.plus, (150, 700))
+        self.image.blit(self.armor, (10, 750))
+        self.image.blit(self.plus, (150, 750))
+
+
+menu_upgrade = None
 main_menu = MainMenu()
 world_map = None
 
@@ -544,6 +661,27 @@ while True:
                     make_scene3()
                 elif 149 < event.pos[0] < 191 and 449 < event.pos[1] < 491 and battles_access[4]:
                     make_scene4()
+                elif world_map.upgrades_rect.collidepoint(event.pos):
+                    world_map.kill()
+                    menu_upgrade = MenuUpgrade()
+            if menu_upgrade:
+                if menu_upgrade.changed.update_points:
+                    if menu_upgrade.add_hp_rect.collidepoint(event.pos):
+                        menu_upgrade.changed.hp += 30
+                        menu_upgrade.changed.update_points -= 1
+                    elif menu_upgrade.add_armor_rect.collidepoint(event.pos):
+                        menu_upgrade.changed.armor += 1
+                        menu_upgrade.changed.update_points -= 1
+                    elif menu_upgrade.add_magic_rect.collidepoint(event.pos):
+                        menu_upgrade.changed.magic += 5
+                        menu_upgrade.changed.update_points -= 1
+                    elif menu_upgrade.add_strength_rect.collidepoint(event.pos):
+                        menu_upgrade.changed.damage += 5
+                        menu_upgrade.changed.update_points -= 1
+                if menu_upgrade.close_rect.collidepoint(event.pos):
+                    menu_upgrade.kill()
+                    menu_upgrade = None
+                    world_map.add(main_sprites)
             for char in characters_sprites:
                 if char.rect.collidepoint(event.pos):
                     if your_turn:
