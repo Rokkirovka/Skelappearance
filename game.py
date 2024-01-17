@@ -422,20 +422,26 @@ heal = Skill('Icon.6_86.png', 2, 0, 'help', False, True)
 
 
 def next_turn():
-    global world_map, moving, your_turn, battle_number, battles_access
+    global world_map, moving, your_turn, battle_number, battles_access, first_assistance, train
     if all([x is None for x in scene.heroes]) or all([x is None for x in scene.enemies]):
         for i in characters_sprites:
             i.recovery()
         for i in all_sprites:
             if i not in spells_sprites and i not in skills_sprites and i not in characters_sprites:
                 i.kill()
-        Sonny.update_points += 5
         world_map = WorldMap()
         if all([x is None for x in scene.enemies]):
-            if battle_number < len(battles_access) - 1:
-                battles_access[battle_number] = False
-                battles_access[battle_number + 1] = True
-                battle_number += 1
+            Sonny.update_points += 5
+            if first_assistance:
+                Veradux.update_points += 5
+            if not train:
+                if battle_number == 2:
+                    first_assistance = True
+                if battle_number < len(battles_access) - 1:
+                    battles_access[battle_number] = False
+                    battles_access[battle_number + 1] = True
+                    battle_number += 1
+        train = False
         return 1
     moving = True
     if scene.pers_turning % 6 < 3:
@@ -468,7 +474,7 @@ def terminate():
 
 scene = Scene()
 battle_number = 1
-battles_access = [True, True, True, True, True]
+battles_access = [True, True, False, False, False]
 
 Sonny = Person('Sonny', load_image('SkeletonBase.png'), True, 1, True, [strike, fireball, heal], 1500, 10000, 10000)
 Veradux = Person('Veradux', load_image('bloodSkeletonBase.png'), True, 2, False, [fireball, heal], 600, 150, 50, 3)
@@ -476,70 +482,27 @@ Warrior = Person('Warrior', load_image('warrior.png'), False, 1, False, [strike]
 Knight = Person('Knight', load_image('knight.png'), False, 2, False, [strike], 800, 0, 200, 10)
 Mage = Person('Mage', load_image('mage.png'), False, 0, False, [fireball, heal], 600, 150, 50, 3)
 Satyr = Person('Satyr', load_image('mvSatyr.png'), False, 1, False, [strike, heal, fireball], 3000, 400, 400, 20)
+Cleric = Person('Cleric', load_image('cleric.png'), False, 1, False, [strike, heal], 600, 70, 130, 2)
+
+first_assistance = False
 
 
-def make_scene1():
-    global scene, world_map
+def make_scene(chars, sky, field, trees=False):
+    global scene, world_map, first_assistance
     world_map.kill()
     world_map = None
     scene.__init__()
-    scene.add_character(Sonny)
-    scene.add_character(Warrior)
-    Sky('sky.png')
-    Sky('sky.png', 1)
-    Field('grass.jpg')
-    next_turn()
-
-
-def make_scene2():
-    global scene, world_map
-    world_map.kill()
-    world_map = None
-    scene.__init__()
-    scene.add_character(Sonny)
-    scene.add_character(Warrior)
-    scene.add_character(Knight)
-    Sky('dark_sky.png')
-    Sky('dark_sky.png', 1)
-    Field('grass.jpg')
-    for i in range(8):
-        Tree(i)
-    next_turn()
-
-
-def make_scene3():
-    global scene, world_map
-    world_map.kill()
-    world_map = None
-    scene.__init__()
-
-    scene.add_character(Sonny)
-    scene.add_character(Veradux)
-
-    Mage.position = 0
-    scene.add_character(Mage)
-    Warrior.position = 1
-    scene.add_character(Warrior)
-    Knight.position = 2
-    scene.add_character(Knight)
-
-    Sky('next_sky.png')
-    Sky('next_sky.png', 1)
-    Field('bridge.png')
-    next_turn()
-
-
-def make_scene4():
-    global scene, world_map
-    world_map.kill()
-    world_map = None
-    scene.__init__()
-    scene.add_character(Sonny)
-    scene.add_character(Veradux)
-    scene.add_character(Satyr)
-    Sky('night_sky.png')
-    Sky('night_sky.png', 1)
-    Field('dark_grass.jpg')
+    for i in chars:
+        if i:
+            scene.add_character(i)
+    if first_assistance:
+        scene.add_character(Veradux)
+    Sky(sky)
+    Sky(sky, 1)
+    Field(field)
+    if trees:
+        for i in range(8):
+            Tree(i)
     next_turn()
 
 
@@ -567,6 +530,7 @@ class WorldMap(pygame.sprite.Sprite):
 
     def update(self, *args):
         self.__init__()
+        pygame.draw.circle(self.image, 'yellow', (925, 160), 20)
         if battles_access[1]:
             pygame.draw.circle(self.image, 'red', (800, 250), 20)
         if battles_access[2]:
@@ -644,6 +608,7 @@ class MenuUpgrade(pygame.sprite.Sprite):
 menu_upgrade = None
 main_menu = MainMenu()
 world_map = None
+train = False
 
 while True:
     for event in pygame.event.get():
@@ -654,13 +619,16 @@ while True:
                 world_map = WorldMap()
             elif world_map:
                 if 779 < event.pos[0] < 821 and 229 < event.pos[1] < 271 and battles_access[1]:
-                    make_scene1()
+                    make_scene([Sonny, Warrior], 'sky.png', 'grass.jpg')
                 elif 579 < event.pos[0] < 621 and 299 < event.pos[1] < 341 and battles_access[2]:
-                    make_scene2()
+                    make_scene([Sonny, Warrior, Knight], 'dark_sky.png', 'grass.jpg', True)
                 elif 389 < event.pos[0] < 431 and 319 < event.pos[1] < 351 and battles_access[3]:
-                    make_scene3()
+                    make_scene([Sonny, Warrior, Knight, Mage], 'next_sky.png', 'bridge.png')
                 elif 149 < event.pos[0] < 191 and 449 < event.pos[1] < 491 and battles_access[4]:
-                    make_scene4()
+                    make_scene([Sonny, Satyr], 'dark_sky.png', 'dark_grass.jpg')
+                elif 904 < event.pos[0] < 946 and 139 < event.pos[1] < 181 and battles_access[0]:
+                    train = True
+                    make_scene([Sonny, Cleric], 'sky.png', 'grass.jpg')
                 elif world_map.upgrades_rect.collidepoint(event.pos):
                     world_map.kill()
                     menu_upgrade = MenuUpgrade()
@@ -668,6 +636,7 @@ while True:
                 if menu_upgrade.changed.update_points:
                     if menu_upgrade.add_hp_rect.collidepoint(event.pos):
                         menu_upgrade.changed.hp += 30
+                        menu_upgrade.changed.max_hp += 30
                         menu_upgrade.changed.update_points -= 1
                     elif menu_upgrade.add_armor_rect.collidepoint(event.pos):
                         menu_upgrade.changed.armor += 1
