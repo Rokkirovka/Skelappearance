@@ -134,6 +134,7 @@ class Person(pygame.sprite.Sprite):
         self.cur_skill = skill
         self.iteration = 0
         self.shooting = True
+        shoot_music.play()
         skill.spell.flip = not self.side
         skill.spell.rect.left = self.place[0] + 60
         skill.spell.rect.bottom = self.place[1] + 100
@@ -169,6 +170,7 @@ class Person(pygame.sprite.Sprite):
                 self.attacking = False
                 self.back()
                 self.target.hp -= self.damage * self.cur_skill.coefficient * (1 - self.target.armor / 100)
+                touch_music.play()
                 ShiftHP(self.target.place, self.damage * self.cur_skill.coefficient * (1 - self.target.armor / 100), True)
                 if self.target.side:
                     bar = scene.heroes_bars[self.target.position]
@@ -184,6 +186,7 @@ class Person(pygame.sprite.Sprite):
                 self.cur_skill = None
             elif self.helping:
                 self.helping = False
+                heal_music.play()
                 self.target.hp = min(self.target.max_hp, self.target.hp + self.magic * self.cur_skill.coefficient)
                 if self.target.side:
                     bar = scene.heroes_bars[self.target.position]
@@ -204,6 +207,7 @@ class Person(pygame.sprite.Sprite):
                 else:
                     bar = scene.enemies_bars[self.target.position]
                 bar.hp -= self.magic * self.cur_skill.coefficient
+                touch_music.play()
                 self.cur_skill.spell.down()
                 self.target.getting_damage = True
                 self.target.update()
@@ -424,12 +428,15 @@ heal = Skill('Icon.6_86.png', 2, 0, 'help', False, True)
 def next_turn():
     global world_map, moving, your_turn, battle_number, battles_access, first_assistance, train
     if all([x is None for x in scene.heroes]) or all([x is None for x in scene.enemies]):
+        if battle_music:
+            battle_music.stop()
         for i in characters_sprites:
             i.recovery()
         for i in all_sprites:
             if i not in spells_sprites and i not in skills_sprites and i not in characters_sprites:
                 i.kill()
         world_map = WorldMap()
+        map_music.play(-1)
         if all([x is None for x in scene.enemies]):
             Sonny.update_points += 5
             if first_assistance:
@@ -476,21 +483,36 @@ scene = Scene()
 battle_number = 1
 battles_access = [True, True, False, False, False]
 
-Sonny = Person('Sonny', load_image('SkeletonBase.png'), True, 1, True, [strike, fireball, heal], 1500, 10000, 10000)
+Sonny = Person('Sonny', load_image('SkeletonBase.png'), True, 1, True, [strike, fireball, heal], 1000, 100, 100)
 Veradux = Person('Veradux', load_image('bloodSkeletonBase.png'), True, 2, False, [fireball, heal], 600, 150, 50, 3)
 Warrior = Person('Warrior', load_image('warrior.png'), False, 1, False, [strike], 500)
 Knight = Person('Knight', load_image('knight.png'), False, 2, False, [strike], 800, 0, 200, 10)
 Mage = Person('Mage', load_image('mage.png'), False, 0, False, [fireball, heal], 600, 150, 50, 3)
 Satyr = Person('Satyr', load_image('mvSatyr.png'), False, 1, False, [strike, heal, fireball], 3000, 400, 400, 20)
-Cleric = Person('Cleric', load_image('cleric.png'), False, 1, False, [strike, heal], 600, 70, 130, 2)
+Cleric = Person('Cleric', load_image('cleric.png'), False, 1, False, [strike, fireball], 800, 100, 120, 2)
+
+menu_music = pygame.mixer.Sound('data/menu_music.mp3')
+map_music = pygame.mixer.Sound('data/map_music.mp3')
+battle0_music = pygame.mixer.Sound('data/battle0_music.mp3')
+battle1_music = pygame.mixer.Sound('data/battle1_music.mp3')
+battle2_music = pygame.mixer.Sound('data/battle2_music.mp3')
+battle3_music = pygame.mixer.Sound('data/battle3_music.mp3')
+battle4_music = pygame.mixer.Sound('data/battle4_music.wav')
+touch_music = pygame.mixer.Sound('data/touch.wav')
+shoot_music = pygame.mixer.Sound('data/shoot_music.mp3')
+heal_music = pygame.mixer.Sound('data/heal_music.mp3')
 
 first_assistance = False
+battle_music = None
 
 
 def make_scene(chars, sky, field, trees=False):
     global scene, world_map, first_assistance
     world_map.kill()
     world_map = None
+    map_music.stop()
+    if battle_music:
+        battle_music.play(-1)
     scene.__init__()
     for i in chars:
         if i:
@@ -607,6 +629,7 @@ class MenuUpgrade(pygame.sprite.Sprite):
 
 menu_upgrade = None
 main_menu = MainMenu()
+menu_music.play(-1)
 world_map = None
 train = False
 
@@ -616,17 +639,24 @@ while True:
             if main_menu:
                 main_menu.kill()
                 main_menu = None
+                menu_music.stop()
                 world_map = WorldMap()
+                map_music.play(-1)
             elif world_map:
                 if 779 < event.pos[0] < 821 and 229 < event.pos[1] < 271 and battles_access[1]:
+                    battle_music = battle1_music
                     make_scene([Sonny, Warrior], 'sky.png', 'grass.jpg')
                 elif 579 < event.pos[0] < 621 and 299 < event.pos[1] < 341 and battles_access[2]:
+                    battle_music = battle2_music
                     make_scene([Sonny, Warrior, Knight], 'dark_sky.png', 'grass.jpg', True)
                 elif 389 < event.pos[0] < 431 and 319 < event.pos[1] < 351 and battles_access[3]:
+                    battle_music = battle3_music
                     make_scene([Sonny, Warrior, Knight, Mage], 'next_sky.png', 'bridge.png')
                 elif 149 < event.pos[0] < 191 and 449 < event.pos[1] < 491 and battles_access[4]:
+                    battle_music = battle4_music
                     make_scene([Sonny, Satyr], 'dark_sky.png', 'dark_grass.jpg')
                 elif 904 < event.pos[0] < 946 and 139 < event.pos[1] < 181 and battles_access[0]:
+                    battle_music = battle0_music
                     train = True
                     make_scene([Sonny, Cleric], 'sky.png', 'grass.jpg')
                 elif world_map.upgrades_rect.collidepoint(event.pos):
