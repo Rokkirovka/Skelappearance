@@ -1,7 +1,8 @@
 import os
-import sys
-import pygame
 import random
+import sys
+
+import pygame
 
 pygame.init()
 size = width, height = 1200, 800
@@ -106,18 +107,22 @@ class Person(pygame.sprite.Sprite):
         for j in range(rows):
             for i in range(columns):
                 frame_location = (self.rect.w * i, self.rect.h * j + 50)
-                self.frames.append(sheet.subsurface(pygame.Rect(frame_location, (self.rect.size[0], self.rect.size[1] - 50))))
+                self.frames.append(
+                    sheet.subsurface(pygame.Rect(frame_location, (self.rect.size[0], self.rect.size[1] - 50))))
 
     def strategy(self):
         medicinal = [x for x in self.skills if x.meaning == 'help']
         if medicinal:
-            for person in sorted([x for x in (scene.heroes if self.side else scene.enemies) if x is not None], key=lambda x: x.hp):
+            for person in sorted([x for x in (scene.heroes if self.side else scene.enemies) if x is not None],
+                                 key=lambda x: x.hp):
                 if person.hp / person.max_hp < random.random():
                     return person, random.choice(medicinal)
         crippling = [x for x in self.skills if x.meaning in ['closed', 'ranged']]
         if random.random() < 0.3:
-            return random.choice([x for x in (scene.enemies if self.side else scene.heroes) if x is not None]), random.choice(crippling)
-        return sorted([x for x in (scene.enemies if self.side else scene.heroes) if x is not None], key=lambda x: x.hp)[0], random.choice(crippling)
+            return random.choice(
+                [x for x in (scene.enemies if self.side else scene.heroes) if x is not None]), random.choice(crippling)
+        return sorted([x for x in (scene.enemies if self.side else scene.heroes) if x is not None], key=lambda x: x.hp)[
+            0], random.choice(crippling)
 
     def recovery(self):
         self.hp = self.max_hp
@@ -171,7 +176,8 @@ class Person(pygame.sprite.Sprite):
                 self.back()
                 self.target.hp -= self.damage * self.cur_skill.coefficient * (1 - self.target.armor / 100)
                 touch_music.play()
-                ShiftHP(self.target.place, self.damage * self.cur_skill.coefficient * (1 - self.target.armor / 100), True)
+                ShiftHP(self.target.place, self.damage * self.cur_skill.coefficient * (1 - self.target.armor / 100),
+                        True)
                 if self.target.side:
                     bar = scene.heroes_bars[self.target.position]
                 else:
@@ -330,19 +336,24 @@ class Skill(pygame.sprite.Sprite):
 
     def update(self, *args):
         global your_turn, moving
-        self.rect.left = width
-        if scene.selected is not None and (scene.selected.side and self.to_hero or not scene.selected.side and self.to_enemy) and self in scene.heroes[1].skills:
-            self.rect.left = 30 + self.pos * 60
-        if your_turn:
-            if scene.selected is not None and args and args[0].type == pygame.MOUSEBUTTONDOWN and self.rect.collidepoint(args[0].pos):
-                if self.meaning == 'closed':
-                    scene.heroes[1].forward(self, scene.selected)
-                elif self.meaning == 'help':
-                    scene.heroes[1].help(self, scene.selected)
-                elif self.meaning == 'ranged':
-                    scene.heroes[1].shoot(self, scene.selected)
-                your_turn = False
-                moving = False
+        if menu_upgrade is None:
+            self.rect.left = width
+            if scene.selected is not None and (
+                    scene.selected.side and self.to_hero or not scene.selected.side and self.to_enemy) and self in \
+                    scene.heroes[1].skills:
+                self.rect.left = 30 + self.pos * 60
+                self.rect.top = 740
+            if your_turn:
+                if scene.selected is not None and args and args[
+                    0].type == pygame.MOUSEBUTTONDOWN and self.rect.collidepoint(args[0].pos):
+                    if self.meaning == 'closed':
+                        scene.heroes[1].forward(self, scene.selected)
+                    elif self.meaning == 'help':
+                        scene.heroes[1].help(self, scene.selected)
+                    elif self.meaning == 'ranged':
+                        scene.heroes[1].shoot(self, scene.selected)
+                    your_turn = False
+                    moving = False
 
 
 class Spell(pygame.sprite.Sprite):
@@ -361,7 +372,8 @@ class Spell(pygame.sprite.Sprite):
         for j in range(rows):
             for i in range(columns):
                 frame_location = (self.rect.w * i, self.rect.h * j)
-                self.frames.append(sheet.subsurface(pygame.Rect(frame_location, (self.rect.size[0], self.rect.size[1]))))
+                self.frames.append(
+                    sheet.subsurface(pygame.Rect(frame_location, (self.rect.size[0], self.rect.size[1]))))
 
     def update(self, *args):
         self.cur_image += 1
@@ -408,7 +420,8 @@ class Tree(pygame.sprite.Sprite):
         for j in range(rows):
             for i in range(columns):
                 frame_location = (self.rect.w * i, self.rect.h * j)
-                self.frames.append(sheet.subsurface(pygame.Rect(frame_location, (self.rect.size[0], self.rect.size[1]))))
+                self.frames.append(
+                    sheet.subsurface(pygame.Rect(frame_location, (self.rect.size[0], self.rect.size[1]))))
 
 
 class Field(pygame.sprite.Sprite):
@@ -419,14 +432,8 @@ class Field(pygame.sprite.Sprite):
         self.rect = self.rect.move(0, height * 2 / 5)
 
 
-strike = Skill('Icon.1_15.png', 1, 0, 'closed', True, False)
-fireball_spell = Spell('orange_fireball.png')
-fireball = Skill('Icon.1_24.png', 0.8, 1, 'ranged', True, False, fireball_spell)
-heal = Skill('Icon.6_86.png', 2, 0, 'help', False, True)
-
-
 def next_turn():
-    global world_map, moving, your_turn, battle_number, battles_access, first_assistance, train
+    global world_map, moving, your_turn, battle_number, battles_access, first_assistance, train, end_menu
     if all([x is None for x in scene.heroes]) or all([x is None for x in scene.enemies]):
         if battle_music:
             battle_music.stop()
@@ -448,6 +455,11 @@ def next_turn():
                     battles_access[battle_number] = False
                     battles_access[battle_number + 1] = True
                     battle_number += 1
+                else:
+                    end_menu = EndMenu()
+                    world_map.kill()
+                    world_map = None
+                    map_music.stop()
         train = False
         return 1
     moving = True
@@ -482,6 +494,17 @@ def terminate():
 scene = Scene()
 battle_number = 1
 battles_access = [True, True, False, False, False]
+
+strike = Skill('Icon.1_15.png', 1, 0, 'closed', True, False)
+strike.description = ['Обычный удар рукой', 'Может быть нанесен только по противнику',
+                      'Наносит урон, равный силе персонажа']
+fireball_spell = Spell('orange_fireball.png')
+fireball = Skill('Icon.1_24.png', 0.8, 1, 'ranged', True, False, fireball_spell)
+fireball.description = ['Удар огненным шаром', 'Может быть нанесен только по противнику',
+                        'Наносит урон, равный силе персонажа * 80%']
+heal = Skill('Icon.6_86.png', 2, 0, 'help', False, True)
+heal.description = ['Исцеление', 'Может быть использовано только на союзнике',
+                    'Исцеляет на значение, равное вашей магии']
 
 Sonny = Person('Sonny', load_image('SkeletonBase.png'), True, 1, True, [strike, fireball, heal], 1000, 100, 100)
 Veradux = Person('Veradux', load_image('bloodSkeletonBase.png'), True, 2, False, [fireball, heal], 600, 150, 50, 3)
@@ -541,6 +564,19 @@ class MainMenu(pygame.sprite.Sprite):
         self.rect = self.image.get_rect()
 
 
+class EndMenu(pygame.sprite.Sprite):
+    def __init__(self):
+        super().__init__(all_sprites, main_sprites)
+        self.image = pygame.transform.scale(load_image('end_menu.png'), (width, height))
+        font = pygame.font.SysFont('monospaced', 80)
+        name = font.render('Вы прошли SKELAPPERANCE DEMO', True, (255, 255, 255))
+        self.image.blit(name, (50, 300))
+        font = pygame.font.SysFont('monospaced', 90)
+        name = font.render('нажмите в любом месте', True, (255, 255, 255))
+        self.image.blit(name, (230, 450))
+        self.rect = self.image.get_rect()
+
+
 class WorldMap(pygame.sprite.Sprite):
     def __init__(self):
         super().__init__(all_sprites, main_sprites)
@@ -570,6 +606,7 @@ class MenuUpgrade(pygame.sprite.Sprite):
         pygame.draw.rect(self.image, 'white', pygame.Rect(0, 0, width / 3, height / 3 * 2))
         pygame.draw.rect(self.image, 'gray', pygame.Rect(0, height / 3 * 2, width / 3, height / 3))
         pygame.draw.rect(self.image, 'white', pygame.Rect(width / 3, height / 3 * 2, width / 3 * 2, height / 3))
+        pygame.draw.rect(self.image, 'gray', pygame.Rect(width / 3, 0, width / 3 * 2, height / 3 * 2))
         self.close = pygame.transform.scale(load_image('close.png', -1), (80, 75))
         self.close_rect = pygame.Rect(width - 80, 0, 80, 75)
         self.image.blit(self.close, (width - 80, 0))
@@ -588,6 +625,16 @@ class MenuUpgrade(pygame.sprite.Sprite):
         self.rect = self.image.get_rect()
         self.change(Sonny)
         self.changed = Sonny
+
+        heal.rect.left = 450
+        heal.rect.top = 20
+        self.heal_rect = pygame.Rect(450, 20, 50, 50)
+        strike.rect.left = 550
+        strike.rect.top = 20
+        self.strike_rect = pygame.Rect(550, 20, 50, 50)
+        fireball.rect.left = 650
+        fireball.rect.top = 20
+        self.fireball_rect = pygame.Rect(650, 20, 50, 50)
 
     def update(self, *args):
         self.change(self.changed)
@@ -629,6 +676,7 @@ class MenuUpgrade(pygame.sprite.Sprite):
 
 menu_upgrade = None
 main_menu = MainMenu()
+end_menu = None
 menu_music.play(-1)
 world_map = None
 train = False
@@ -640,6 +688,11 @@ while True:
                 main_menu.kill()
                 main_menu = None
                 menu_music.stop()
+                world_map = WorldMap()
+                map_music.play(-1)
+            if end_menu:
+                end_menu.kill()
+                end_menu = None
                 world_map = WorldMap()
                 map_music.play(-1)
             elif world_map:
@@ -677,6 +730,25 @@ while True:
                     elif menu_upgrade.add_strength_rect.collidepoint(event.pos):
                         menu_upgrade.changed.damage += 5
                         menu_upgrade.changed.update_points -= 1
+                if menu_upgrade.heal_rect.collidepoint(event.pos):
+                    pygame.draw.rect(menu_upgrade.image, 'gray',
+                                     pygame.Rect(width / 3, 0, width / 3 * 2, height / 3 * 2))
+                    for i in range(3):
+                        name = bar_font.render(heal.description[i], True, (0, 0, 0))
+                        menu_upgrade.image.blit(name, (450, 100 + 50 * i))
+                if menu_upgrade.strike_rect.collidepoint(event.pos):
+                    pygame.draw.rect(menu_upgrade.image, 'gray',
+                                     pygame.Rect(width / 3, 0, width / 3 * 2, height / 3 * 2))
+                    for i in range(3):
+                        name = bar_font.render(strike.description[i], True, (0, 0, 0))
+                        menu_upgrade.image.blit(name, (450, 100 + 50 * i))
+                if menu_upgrade.fireball_rect.collidepoint(event.pos):
+                    pygame.draw.rect(menu_upgrade.image, 'gray',
+                                     pygame.Rect(width / 3, 0, width / 3 * 2, height / 3 * 2))
+                    for i in range(3):
+                        name = bar_font.render(fireball.description[i], True, (0, 0, 0))
+                        menu_upgrade.image.blit(name, (450, 100 + 50 * i))
+                menu_upgrade.image.blit(menu_upgrade.close, (width - 80, 0))
                 if menu_upgrade.close_rect.collidepoint(event.pos):
                     menu_upgrade.kill()
                     menu_upgrade = None
